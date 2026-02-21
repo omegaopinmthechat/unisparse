@@ -24,7 +24,7 @@ beta_true_whole = [beta0_true; beta_true];
 
 % -------- Hyperparameters --------
 lambda = 0.05;     % Regularization parameter (same for both)
-gamma_mcp = 3.0;   % MCP concavity parameter (only for MCP)
+gamma_mcp = 3.0;   % MCP concavity parameter (only for MCP) -> Zhang default
 
 % -------- Bounds and Options --------
 ub_lb_factor = 1e2;
