@@ -58,7 +58,7 @@ best_lambda_unimcp   = NaN;
 %%%%                    CV LOOP ONLY      (UNILASSO)                   %%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-q = 1; % for unilasso
+% q = 1; % for unilasso -> NOT USED
 for il = 1:nl
     lambda = lambda_grid(il);
     

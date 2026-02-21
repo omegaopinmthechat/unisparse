@@ -109,14 +109,14 @@ Method = ["UniLASSO (L1)"; "UniMCP"];
 Lambda = [lambda; lambda];
 Gamma = [NaN; gamma_mcp];
 
-TPR = [metrics_L1.TPR; metrics_MCP.TPR];
-FPR = [metrics_L1.FPR; metrics_MCP.FPR];
-MCC = [metrics_L1.MCC; metrics_MCP.MCC];
+TPR = [metrics_L1(1); metrics_MCP(1)];
+FPR = [metrics_L1(2); metrics_MCP(2)];
+MCC = [metrics_L1(3); metrics_MCP(3)];
 
-Beta_RMSE = [metrics_L1.beta_rmse; metrics_MCP.beta_rmse];
-Beta_MAD = [metrics_L1.beta_mad; metrics_MCP.beta_mad];
+Beta_RMSE = [metrics_L1(4); metrics_MCP(4)];
+Beta_MAD = [metrics_L1(5); metrics_MCP(5)];
 
-MSE = [metrics_L1.mse; metrics_MCP.mse];
+MSE = [metrics_L1(6); metrics_MCP(6)];
 Time_sec = [time_L1; time_MCP];
 
 Obj_Value = [fval_L1; fval_MCP];
@@ -140,32 +140,6 @@ Coef_Table = table((0:p)', beta_true_whole, beta_hat_whole_L1, beta_hat_whole_MC
                    'VariableNames', {'Index', 'True', 'UniLASSO', 'UniMCP'});
 disp(Coef_Table);
 
-% -------- Visualize Coefficients --------
-figure('Position', [100 100 1000 500]);
-
-subplot(1,2,1);
-bar([beta_true_whole, beta_hat_whole_L1, beta_hat_whole_MCP]);
-xlabel('Coefficient Index', 'FontSize', 11);
-ylabel('Coefficient Value', 'FontSize', 11);
-title('Coefficient Comparison', 'FontSize', 12);
-legend('True', 'UniLASSO', 'UniMCP', 'Location', 'best');
-grid on;
-
-subplot(1,2,2);
-hold on;
-plot(beta_true_whole, beta_hat_whole_L1, 'o', 'MarkerSize', 8, ...
-     'DisplayName', 'UniLASSO');
-plot(beta_true_whole, beta_hat_whole_MCP, 's', 'MarkerSize', 8, ...
-     'DisplayName', 'UniMCP');
-plot([-5 5], [-5 5], 'k--', 'LineWidth', 1.5, 'DisplayName', 'Perfect Fit');
-xlabel('True Coefficients', 'FontSize', 11);
-ylabel('Estimated Coefficients', 'FontSize', 11);
-title('Estimation Accuracy', 'FontSize', 12);
-legend('Location', 'best');
-grid on;
-axis equal;
-hold off;
-
 % -------- Summary --------
 fprintf('\n');
 disp('============================================================');
@@ -176,22 +150,28 @@ fprintf('Lambda: %.4f\n', lambda);
 fprintf('MCP Gamma: %.2f\n\n', gamma_mcp);
 
 fprintf('UniLASSO Performance:\n');
-fprintf('  - MSE: %.6f\n', metrics_L1.mse);
-fprintf('  - Beta RMSE: %.6f\n', metrics_L1.beta_rmse);
-fprintf('  - MCC: %.4f\n', metrics_L1.MCC);
+fprintf('  - MSE: %.6f\n', metrics_L1(6));
+fprintf('  - Beta RMSE: %.6f\n', metrics_L1(4));
+fprintf('  - MCC: %.4f\n', metrics_L1(3));
 fprintf('  - Time: %.4f sec\n\n', time_L1);
 
 fprintf('UniMCP Performance:\n');
-fprintf('  - MSE: %.6f\n', metrics_MCP.mse);
-fprintf('  - Beta RMSE: %.6f\n', metrics_MCP.beta_rmse);
-fprintf('  - MCC: %.4f\n', metrics_MCP.MCC);
+fprintf('  - MSE: %.6f\n', metrics_MCP(6));
+fprintf('  - Beta RMSE: %.6f\n', metrics_MCP(4));
+fprintf('  - MCC: %.4f\n', metrics_MCP(3));
 fprintf('  - Time: %.4f sec\n\n', time_MCP);
 
-if metrics_MCP.mse < metrics_L1.mse
-    fprintf('Winner: UniMCP (%.2f%% MSE reduction)\n', ...
-            100*(metrics_L1.mse - metrics_MCP.mse)/metrics_L1.mse);
+mse_diff = abs(metrics_MCP(6) - metrics_L1(6));
+mse_pct_diff = 100 * mse_diff / max(metrics_L1(6), metrics_MCP(6));
+
+if mse_pct_diff < 0.01
+    fprintf('Result: Essentially equivalent (MSE difference < 0.01%%)\n');
+    fprintf('        MSE difference: %.6f\n', mse_diff);
+elseif metrics_MCP(6) < metrics_L1(6)
+    fprintf('Winner: UniMCP (%.4f%% MSE reduction)\n', ...
+            100*(metrics_L1(6) - metrics_MCP(6))/metrics_L1(6));
 else
-    fprintf('Winner: UniLASSO (%.2f%% MSE reduction)\n', ...
-            100*(metrics_MCP.mse - metrics_L1.mse)/metrics_MCP.mse);
+    fprintf('Winner: UniLASSO (%.4f%% MSE reduction)\n', ...
+            100*(metrics_MCP(6) - metrics_L1(6))/metrics_MCP(6));
 end
 disp('============================================================');
