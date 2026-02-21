@@ -55,7 +55,7 @@ best_test_mse_unimcp = inf;
 best_lambda_unimcp   = NaN;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%                    CV LOOP ONLY                                  %%%%
+%%%%                    CV LOOP ONLY      (UNILASSO)                   %%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 q = 1; % for unilasso
@@ -66,7 +66,7 @@ for il = 1:nl
     fold_test_mse  = zeros(nfolds,1);
     
     for f = 1:nfolds
-        fprintf('CV | lambda = %.2e | fold %d/%d\n',...
+        fprintf('UniLass CV | lambda = %.2e | fold %d/%d\n',...
             lambda, f, nfolds);
         
         Xtr = data.train{f}.X;
