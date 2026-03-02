@@ -150,12 +150,16 @@ fprintf('Lambda: %.4f\n', lambda);
 fprintf('MCP Gamma: %.2f\n\n', gamma_mcp);
 
 fprintf('UniLASSO Performance:\n');
+fprintf('  - TPR: %.4f\n', metrics_L1(1));
+fprintf('  - FPR: %.4f\n', metrics_L1(2));
 fprintf('  - MSE: %.6f\n', metrics_L1(6));
 fprintf('  - Beta RMSE: %.6f\n', metrics_L1(4));
 fprintf('  - MCC: %.4f\n', metrics_L1(3));
 fprintf('  - Time: %.4f sec\n\n', time_L1);
 
 fprintf('UniMCP Performance:\n');
+fprintf('  - TPR: %.4f\n', metrics_MCP(1));
+fprintf('  - FPR: %.4f\n', metrics_MCP(2));
 fprintf('  - MSE: %.6f\n', metrics_MCP(6));
 fprintf('  - Beta RMSE: %.6f\n', metrics_MCP(4));
 fprintf('  - MCC: %.4f\n', metrics_MCP(3));
@@ -173,5 +177,13 @@ elseif metrics_MCP(6) < metrics_L1(6)
 else
     fprintf('Winner: UniLASSO (%.4f%% MSE reduction)\n', ...
             100*(metrics_MCP(6) - metrics_L1(6))/metrics_MCP(6));
+end
+% ---------- MCC-based winner (secondary metric) ----------
+if metrics_MCP(3) > metrics_L1(3)
+    fprintf('MCC Winner: UniMCP (%.4f vs %.4f)\n', metrics_MCP(3), metrics_L1(3));
+elseif metrics_MCP(3) < metrics_L1(3)
+    fprintf('MCC Winner: UniLASSO (%.4f vs %.4f)\n', metrics_L1(3), metrics_MCP(3));
+else
+    fprintf('MCC: Tie (%.4f each)\n', metrics_L1(3));
 end
 disp('============================================================');
