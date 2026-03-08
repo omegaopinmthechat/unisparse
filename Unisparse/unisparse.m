@@ -102,6 +102,64 @@ end
 
 results = struct();
 
+% Ensure a parallel pool exists (mandatory multi-core CPU parallelism)
+try
+    pool = gcp('nocreate');
+    if isempty(pool)
+        parpool('Processes');
+    end
+catch
+    % If starting a pool fails, continue serially
+end
+
+% Detect GPU availability (optional GPU acceleration)
+useGPU = false;
+try
+    if gpuDeviceCount > 0
+        try
+            gpuDevice;
+            useGPU = true;
+        catch
+            useGPU = false;
+        end
+    end
+catch
+    useGPU = false;
+end
+
+% Prepare GPU copies only if available; keep CPU copies for optimizer/unireg
+if useGPU
+    try
+        X_gpu = gpuArray(X);
+        y_gpu = gpuArray(y);
+    catch
+        useGPU = false;
+    end
+end
+
+% Report hardware usage to user
+try
+    pool_info = gcp('nocreate');
+    if ~isempty(pool_info)
+        fprintf('Parallel pool: active with %d workers.\n', pool_info.NumWorkers);
+    else
+        fprintf('Parallel pool: none (running serially).\n');
+    end
+catch
+    fprintf('Parallel pool: status unknown.\n');
+end
+
+if useGPU
+    try
+        g = gpuDevice;
+        fprintf('GPU enabled: Yes — Device %d: %s\n', g.Index, g.Name);
+    catch
+        fprintf('GPU enabled: Yes (device info unavailable)\n');
+    end
+else
+    fprintf('GPU enabled: No\n');
+end
+
 % Decide if we should run a parameter sweep: accept cell arrays or vectors
 sweep_flag = false;
 if iscell(method) && numel(method) > 1
@@ -310,8 +368,34 @@ function best_lambda = cv_for_objective(obj_fun_builder)
                 gamma_hat  = b(:) .* theta_hat(:);
                 gamma0_hat = theta0_hat + sum(b0(:).*theta_hat(:));
 
-                yhat_te = gamma0_hat + Xte * gamma_hat;
-                fold_test_mse(f) = mean((yte - yhat_te).^2);
+                if useGPU
+                    try
+                        Xte_g = gpuArray(Xte);
+                        gamma_hat_g = gpuArray(gamma_hat);
+                        yte_g = gpuArray(yte);
+                        yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
+                        fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
+                    catch
+                        yhat_te = gamma0_hat + Xte * gamma_hat;
+                        fold_test_mse(f) = mean((yte - yhat_te).^2);
+                    end
+                else
+                    if useGPU
+                        try
+                            Xte_g = gpuArray(Xte);
+                            gamma_hat_g = gpuArray(gamma_hat);
+                            yte_g = gpuArray(yte);
+                            yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
+                            fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
+                        catch
+                            yhat_te = gamma0_hat + Xte * gamma_hat;
+                            fold_test_mse(f) = mean((yte - yhat_te).^2);
+                        end
+                    else
+                        yhat_te = gamma0_hat + Xte * gamma_hat;
+                        fold_test_mse(f) = mean((yte - yhat_te).^2);
+                    end
+                end
             end
         else
             for f = 1:nfolds
@@ -334,8 +418,34 @@ function best_lambda = cv_for_objective(obj_fun_builder)
                 gamma_hat  = b(:) .* theta_hat(:);
                 gamma0_hat = theta0_hat + sum(b0(:).*theta_hat(:));
 
-                yhat_te = gamma0_hat + Xte * gamma_hat;
-                fold_test_mse(f) = mean((yte - yhat_te).^2);
+                if useGPU
+                    try
+                        Xte_g = gpuArray(Xte);
+                        gamma_hat_g = gpuArray(gamma_hat);
+                        yte_g = gpuArray(yte);
+                        yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
+                        fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
+                    catch
+                        yhat_te = gamma0_hat + Xte * gamma_hat;
+                        fold_test_mse(f) = mean((yte - yhat_te).^2);
+                    end
+                else
+                    if useGPU
+                        try
+                            Xte_g = gpuArray(Xte);
+                            gamma_hat_g = gpuArray(gamma_hat);
+                            yte_g = gpuArray(yte);
+                            yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
+                            fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
+                        catch
+                            yhat_te = gamma0_hat + Xte * gamma_hat;
+                            fold_test_mse(f) = mean((yte - yhat_te).^2);
+                        end
+                    else
+                        yhat_te = gamma0_hat + Xte * gamma_hat;
+                        fold_test_mse(f) = mean((yte - yhat_te).^2);
+                    end
+                end
             end
         end
 
