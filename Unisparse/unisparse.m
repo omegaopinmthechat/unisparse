@@ -66,6 +66,30 @@ end
 
 [n, p] = size(X);
 
+% Ensure helper folders are on the path so dependent functions are available.
+% This keeps `function_test.m` minimal (a demo) while centralizing path setup here.
+try
+    thisFile = mfilename('fullpath');
+    repoRoot = fileparts(fileparts(thisFile)); % parent folder of Unisparse/
+    addpath(fullfile(repoRoot, 'supp funs'));
+    addpath(fullfile(repoRoot, 'other methods'));
+    if exist(fullfile(repoRoot,'RMPSH'),'dir')
+        addpath(fullfile(repoRoot,'RMPSH'));
+    end
+
+    % Propagate to workers if a parallel pool exists
+    pool_for_path = gcp('nocreate');
+    if ~isempty(pool_for_path)
+        pctRunOnAll(sprintf('addpath(''%s'')', fullfile(repoRoot, 'supp funs')));
+        pctRunOnAll(sprintf('addpath(''%s'')', fullfile(repoRoot, 'other methods')));
+        if exist(fullfile(repoRoot,'RMPSH'),'dir')
+            pctRunOnAll(sprintf('addpath(''%s'')', fullfile(repoRoot, 'RMPSH')));
+        end
+    end
+catch
+    % non-fatal if path propagation fails
+end
+
 % --- Default RMPS bounds / options ---
 ub_lb_factor = 1e2;
 if isempty(rmps_lb)
