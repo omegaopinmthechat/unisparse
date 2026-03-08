@@ -2,3 +2,26 @@
 2. scenario 
 3. function: x, y, lambda range (default let 10^-5 to 10^5), number of CV folds (test 5 folds), method(unilasso,unimcp,uniscad), scad a, mcp gamma, for unilasso has to have rmps ub/lb (has to have a default), rmps starting point, rmps options (learn how to handle)
 4. make a and gamma last two parameter, make all the default parameter the last parameter
+
+test_1: 
+========== UniLASSO CV (nfolds=5) ==========
+========== UniMCP CV (nfolds=5) ==========
+========== UniSCAD CV (nfolds=5) ==========
+======================================================
+ UNILASSO ESTIMATED COEFFICIENTS  [beta0_hat ; beta_hat]
+======================================================
+   -0.3731         0         0         0         0    0.2287         0    2.1057    1.4828         0         0
+
+======================================================
+ UNIMCP ESTIMATED COEFFICIENTS  [beta0_hat ; beta_hat]
+======================================================
+   -0.3731         0         0         0         0    0.2483         0    2.1019    1.5080         0         0
+
+======================================================
+ UNISCAD ESTIMATED COEFFICIENTS  [beta0_hat ; beta_hat]
+======================================================
+   -0.3731         0         0         0         0    0.2442         0    2.1050    1.5071         0         0
+
+Done.
+
+test_2: 

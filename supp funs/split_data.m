@@ -6,9 +6,8 @@ function data = split_data(X, y, nfolds)
 % If nfolds > 1:
 %     K-fold cross-validation with balanced folds
 %
-% Output struct:
-%     data.train{f}.X , data.train{f}.y
-%     data.test{f}.X  , data.test{f}.y
+% Output struct (indexes only to avoid copying data):
+%     data.train_idx{f} , data.test_idx{f}
 % -------------------------------------------------
 
 [n, ~] = size(X);
@@ -19,7 +18,9 @@ if nfolds == 1
     ntrain = floor(0.8 * n);
     train_idx = idx(1:ntrain);
     test_idx  = idx(ntrain+1:end);
-
+    data.train_idx{1} = train_idx;
+    data.test_idx{1}  = test_idx;
+    % Backwards-compatible copies for existing callers
     data.train{1}.X = X(train_idx,:);
     data.train{1}.y = y(train_idx);
     data.test{1}.X  = X(test_idx,:);
@@ -42,6 +43,9 @@ else
 
         train_idx = setdiff(idx, test_idx);
 
+        data.train_idx{f} = train_idx;
+        data.test_idx{f}  = test_idx;
+        % Backwards-compatible copies for existing callers
         data.train{f}.X = X(train_idx,:);
         data.train{f}.y = y(train_idx);
         data.test{f}.X  = X(test_idx,:);
