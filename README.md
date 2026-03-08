@@ -98,9 +98,4 @@ init_project;
 parpool('Processes');
 ```
 
-## Contributing
-
-Please open issues or submit PRs for improvements. Keep `function_test` as a simple demo; bulk changes should be done in `Unisparse/unisparse.m` or appropriate helper files.
-
----
 Last updated: 2026-03-08
