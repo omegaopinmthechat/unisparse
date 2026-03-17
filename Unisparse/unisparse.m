@@ -67,10 +67,9 @@ end
 [n, p] = size(X);
 
 % Ensure helper folders are on the path so dependent functions are available.
-% This keeps `function_test.m` minimal (a demo) while centralizing path setup here.
 try
     thisFile = mfilename('fullpath');
-    repoRoot = fileparts(fileparts(thisFile)); % parent folder of Unisparse/
+    repoRoot = fileparts(fileparts(thisFile));
     addpath(fullfile(repoRoot, 'supp funs'));
     addpath(fullfile(repoRoot, 'other methods'));
     if exist(fullfile(repoRoot,'RMPSH'),'dir')
@@ -136,32 +135,7 @@ catch
     % If starting a pool fails, continue serially
 end
 
-% Detect GPU availability (optional GPU acceleration)
-useGPU = false;
-try
-    if gpuDeviceCount > 0
-        try
-            gpuDevice;
-            useGPU = true;
-        catch
-            useGPU = false;
-        end
-    end
-catch
-    useGPU = false;
-end
-
-% Prepare GPU copies only if available; keep CPU copies for optimizer/unireg
-if useGPU
-    try
-        X_gpu = gpuArray(X);
-        y_gpu = gpuArray(y);
-    catch
-        useGPU = false;
-    end
-end
-
-% Report hardware usage to user
+% Report parallel pool status
 try
     pool_info = gcp('nocreate');
     if ~isempty(pool_info)
@@ -173,18 +147,7 @@ catch
     fprintf('Parallel pool: status unknown.\n');
 end
 
-if useGPU
-    try
-        g = gpuDevice;
-        fprintf('GPU enabled: Yes — Device %d: %s\n', g.Index, g.Name);
-    catch
-        fprintf('GPU enabled: Yes (device info unavailable)\n');
-    end
-else
-    fprintf('GPU enabled: No\n');
-end
-
-% Decide if we should run a parameter sweep: accept cell arrays or vectors
+% Decide if we should run a parameter sweep
 sweep_flag = false;
 if iscell(method) && numel(method) > 1
     sweep_flag = true;
@@ -209,48 +172,6 @@ if iscell(rmps_x0) && numel(rmps_x0) > 1
 end
 
 if sweep_flag
-    % Build lists for sweeping
-    if iscell(method)
-        methods_list = method;
-    else
-        if ischar(method)
-            methods_list = {method};
-        else
-            methods_list = method;
-        end
-    end
-    if iscell(lambda_range)
-        lambda_list = lambda_range;
-    else
-        lambda_list = {lambda_range};
-    end
-    if ~iscell(rmps_lb)
-        rmps_lb_list = {rmps_lb};
-    else
-        rmps_lb_list = rmps_lb;
-    end
-    if ~iscell(rmps_ub)
-        rmps_ub_list = {rmps_ub};
-    else
-        rmps_ub_list = rmps_ub;
-    end
-    if ~iscell(rmps_x0)
-        rmps_x0_list = {rmps_x0};
-    else
-        rmps_x0_list = rmps_x0;
-    end
-    nfolds_list = nfolds(:)';
-    a_list = a(:)';
-    gamma_list = gamma(:)';
-
-    % Estimate total runs
-    total_runs = numel(methods_list)*numel(lambda_list)*numel(nfolds_list)*numel(a_list)*numel(gamma_list)*numel(rmps_lb_list)*numel(rmps_x0_list);
-    fprintf('Running internal parameter sweep: %d runs\n', total_runs);
-    results_all = struct();
-    run_idx = 0;
-    % preallocate results array to avoid dynamic growth
-    results_all(total_runs) = struct();
-    if sweep_flag
     % Build all parameter lists
     if iscell(method),       methods_list  = method;        else, methods_list  = {method};        end
     if iscell(lambda_range), lambda_list   = lambda_range;  else, lambda_list   = {lambda_range};  end
@@ -302,7 +223,6 @@ if sweep_flag
             fprintf('  -> Error: %s\n', ME.message);
         end
 
-        % Store params
         results_all(run_idx).params = struct('method', cur_method, 'lambda_range', cur_lambda, ...
             'nfolds', cur_nfolds, 'a', cur_a, 'gamma', cur_gamma, ...
             'rmps_lb', cur_rmps_lb, 'rmps_x0', cur_rmps_x0);
@@ -315,31 +235,23 @@ if sweep_flag
     results.SWEEP = results_all;
     save('unisparse_cv_sweep_results.mat', 'results_all', '-v7.3');
     return;
-end % im
-    results.SWEEP = results_all;
-    save('unisparse_cv_sweep_results.mat','results_all','-v7.3');
-    return;
 end
 
 % Helper to perform CV for a given objective wrapper
 if ~sweep_flag
     data = split_data(X, y, nfolds);
 end
+
 function best_lambda = cv_for_objective(obj_fun_builder)
-    % Optimized CV: precompute per-fold univariate regressions (independent of lambda),
-    % use index-based splits to avoid copying, preallocate arrays, and optionally use parfor.
     best_mse = inf;
     best_lambda = NaN;
 
-    % Prepare index-based splits (split_data now returns train_idx/test_idx)
-    % data is already obtained in the parent scope when not sweeping
-    % Precompute per-fold univariate components
     train_idx_cell = cell(nfolds,1);
     test_idx_cell  = cell(nfolds,1);
-    B_mat = zeros(p, nfolds);    % store b (p x nfolds)
-    B0_mat = zeros(p, nfolds);   % store b0 (p x nfolds)
-    ETA = cell(nfolds,1);        % store eta_loo per fold (n_train x p)
-    PSI0 = cell(nfolds,1);       % starting psi0 per fold (p+1 x 1)
+    B_mat  = zeros(p, nfolds);
+    B0_mat = zeros(p, nfolds);
+    ETA    = cell(nfolds,1);
+    PSI0   = cell(nfolds,1);
 
     for f = 1:nfolds
         train_idx = data.train_idx{f};
@@ -347,14 +259,13 @@ function best_lambda = cv_for_objective(obj_fun_builder)
         train_idx_cell{f} = train_idx;
         test_idx_cell{f}  = test_idx;
 
-        % compute univariate regressions once per fold
         Xtr = X(train_idx, :);
         ytr = y(train_idx);
         [b0_fold, b_fold, ~, ~, eta_loo_fold] = unisparse_univreg(Xtr, ytr);
 
-        B_mat(:,f) = b_fold(:);
+        B_mat(:,f)  = b_fold(:);
         B0_mat(:,f) = b0_fold(:);
-        ETA{f} = eta_loo_fold;
+        ETA{f}      = eta_loo_fold;
 
         if isempty(rmps_x0)
             PSI0{f} = [mean(b0_fold); ones(p,1)];
@@ -363,119 +274,57 @@ function best_lambda = cv_for_objective(obj_fun_builder)
         end
     end
 
-    % decide on parallelization
     use_parallel = license('test','Distrib_Computing_Toolbox');
 
-    % Loop across lambdas (nl typically ~50)
     for il = 1:nl
         lambda = lambda_grid(il);
         fold_test_mse = zeros(nfolds,1);
 
         if use_parallel
             parfor f = 1:nfolds
-                train_idx = train_idx_cell{f};
-                test_idx  = test_idx_cell{f};
-
-                Xte = X(test_idx, :);
-                yte = y(test_idx);
-
-                b0 = B0_mat(:,f);
-                b  = B_mat(:,f);
+                Xte     = X(test_idx_cell{f}, :);
+                yte     = y(test_idx_cell{f});
+                b0      = B0_mat(:,f);
+                b       = B_mat(:,f);
                 eta_loo = ETA{f};
-                psi0 = PSI0{f};
+                psi0    = PSI0{f};
 
-                objFun = obj_fun_builder(psi0, eta_loo, y(train_idx), lambda);
+                objFun = obj_fun_builder(psi0, eta_loo, y(train_idx_cell{f}), lambda);
                 [x_opt, ~, ~] = RMPSH(objFun, psi0, rmps_lb, rmps_ub, rmps_options);
 
                 theta0_hat = x_opt(1);
                 theta_hat  = x_opt(2:end);
                 gamma_hat  = b(:) .* theta_hat(:);
-                gamma0_hat = theta0_hat + sum(b0(:).*theta_hat(:));
+                gamma0_hat = theta0_hat + sum(b0(:) .* theta_hat(:));
 
-                if useGPU
-                    try
-                        Xte_g = gpuArray(Xte);
-                        gamma_hat_g = gpuArray(gamma_hat);
-                        yte_g = gpuArray(yte);
-                        yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
-                        fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
-                    catch
-                        yhat_te = gamma0_hat + Xte * gamma_hat;
-                        fold_test_mse(f) = mean((yte - yhat_te).^2);
-                    end
-                else
-                    if useGPU
-                        try
-                            Xte_g = gpuArray(Xte);
-                            gamma_hat_g = gpuArray(gamma_hat);
-                            yte_g = gpuArray(yte);
-                            yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
-                            fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
-                        catch
-                            yhat_te = gamma0_hat + Xte * gamma_hat;
-                            fold_test_mse(f) = mean((yte - yhat_te).^2);
-                        end
-                    else
-                        yhat_te = gamma0_hat + Xte * gamma_hat;
-                        fold_test_mse(f) = mean((yte - yhat_te).^2);
-                    end
-                end
+                yhat_te = gamma0_hat + Xte * gamma_hat;
+                fold_test_mse(f) = mean((yte - yhat_te).^2);
             end
         else
             for f = 1:nfolds
-                train_idx = train_idx_cell{f};
-                test_idx  = test_idx_cell{f};
-
-                Xte = X(test_idx, :);
-                yte = y(test_idx);
-
-                b0 = B0_mat(:,f);
-                b  = B_mat(:,f);
+                Xte     = X(test_idx_cell{f}, :);
+                yte     = y(test_idx_cell{f});
+                b0      = B0_mat(:,f);
+                b       = B_mat(:,f);
                 eta_loo = ETA{f};
-                psi0 = PSI0{f};
+                psi0    = PSI0{f};
 
-                objFun = obj_fun_builder(psi0, eta_loo, y(train_idx), lambda);
+                objFun = obj_fun_builder(psi0, eta_loo, y(train_idx_cell{f}), lambda);
                 [x_opt, ~, ~] = RMPSH(objFun, psi0, rmps_lb, rmps_ub, rmps_options);
 
                 theta0_hat = x_opt(1);
                 theta_hat  = x_opt(2:end);
                 gamma_hat  = b(:) .* theta_hat(:);
-                gamma0_hat = theta0_hat + sum(b0(:).*theta_hat(:));
+                gamma0_hat = theta0_hat + sum(b0(:) .* theta_hat(:));
 
-                if useGPU
-                    try
-                        Xte_g = gpuArray(Xte);
-                        gamma_hat_g = gpuArray(gamma_hat);
-                        yte_g = gpuArray(yte);
-                        yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
-                        fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
-                    catch
-                        yhat_te = gamma0_hat + Xte * gamma_hat;
-                        fold_test_mse(f) = mean((yte - yhat_te).^2);
-                    end
-                else
-                    if useGPU
-                        try
-                            Xte_g = gpuArray(Xte);
-                            gamma_hat_g = gpuArray(gamma_hat);
-                            yte_g = gpuArray(yte);
-                            yhat_te_g = gamma0_hat + Xte_g * gamma_hat_g;
-                            fold_test_mse(f) = gather(mean((yte_g - yhat_te_g).^2));
-                        catch
-                            yhat_te = gamma0_hat + Xte * gamma_hat;
-                            fold_test_mse(f) = mean((yte - yhat_te).^2);
-                        end
-                    else
-                        yhat_te = gamma0_hat + Xte * gamma_hat;
-                        fold_test_mse(f) = mean((yte - yhat_te).^2);
-                    end
-                end
+                yhat_te = gamma0_hat + Xte * gamma_hat;
+                fold_test_mse(f) = mean((yte - yhat_te).^2);
             end
         end
 
         test_mse = mean(fold_test_mse);
         if test_mse < best_mse
-            best_mse = test_mse;
+            best_mse    = test_mse;
             best_lambda = lambda;
         end
     end
@@ -487,7 +336,6 @@ if run_unilasso
     obj_builder = @(psi0, eta_loo, ytr, lambda) (@(psi) unilasso_objective_given_eta_loo(psi, eta_loo, ytr, lambda));
     best_lambda_unilasso = cv_for_objective(obj_builder);
 
-    % Final refit on full data
     [b0, b, ~, ~, eta_loo] = unisparse_univreg(X, y);
     if isempty(rmps_x0)
         psi0 = [mean(b0); ones(p,1)];
@@ -499,11 +347,10 @@ if run_unilasso
     theta0_hat_L1 = x_opt_L1(1);
     theta_hat_L1  = x_opt_L1(2:end);
     gamma_hat_L1  = b(:) .* theta_hat_L1(:);
-    gamma0_hat_L1 = theta0_hat_L1 + sum(b0(:).*theta_hat_L1(:));
-    beta_hat_whole_unilasso = [gamma0_hat_L1; gamma_hat_L1];
+    gamma0_hat_L1 = theta0_hat_L1 + sum(b0(:) .* theta_hat_L1(:));
 
-    results.UNILASSO.lambda = best_lambda_unilasso;
-    results.UNILASSO.beta   = beta_hat_whole_unilasso;
+    results.UNILASSO.lambda       = best_lambda_unilasso;
+    results.UNILASSO.beta         = [gamma0_hat_L1; gamma_hat_L1];
     results.UNILASSO.rmps_options = rmps_options;
 end
 
@@ -513,7 +360,6 @@ if run_unimcp
     obj_builder = @(psi0, eta_loo, ytr, lambda) (@(psi) uniMCP_objective_given_eta_loo(psi, eta_loo, ytr, lambda, gamma));
     best_lambda_unimcp = cv_for_objective(obj_builder);
 
-    % Final refit on full data
     [b0, b, ~, ~, eta_loo] = unisparse_univreg(X, y);
     if isempty(rmps_x0)
         psi0 = [mean(b0); ones(p,1)];
@@ -525,12 +371,11 @@ if run_unimcp
     theta0_hat_MCP = x_opt_MCP(1);
     theta_hat_MCP  = x_opt_MCP(2:end);
     gamma_hat_MCP  = b(:) .* theta_hat_MCP(:);
-    gamma0_hat_MCP = theta0_hat_MCP + sum(b0(:).*theta_hat_MCP(:));
-    beta_hat_whole_unimcp = [gamma0_hat_MCP; gamma_hat_MCP];
+    gamma0_hat_MCP = theta0_hat_MCP + sum(b0(:) .* theta_hat_MCP(:));
 
-    results.UNIMCP.lambda = best_lambda_unimcp;
-    results.UNIMCP.beta   = beta_hat_whole_unimcp;
-    results.UNIMCP.gamma  = gamma;
+    results.UNIMCP.lambda       = best_lambda_unimcp;
+    results.UNIMCP.beta         = [gamma0_hat_MCP; gamma_hat_MCP];
+    results.UNIMCP.gamma        = gamma;
     results.UNIMCP.rmps_options = rmps_options;
 end
 
@@ -540,7 +385,6 @@ if run_uniscad
     obj_builder = @(psi0, eta_loo, ytr, lambda) (@(psi) uniSCAD_objective_given_eta_loo(psi, eta_loo, ytr, lambda, a));
     best_lambda_uniscad = cv_for_objective(obj_builder);
 
-    % Final refit on full data
     [b0, b, ~, ~, eta_loo] = unisparse_univreg(X, y);
     if isempty(rmps_x0)
         psi0 = [mean(b0); ones(p,1)];
@@ -552,16 +396,15 @@ if run_uniscad
     theta0_hat_SCAD = x_opt_SCAD(1);
     theta_hat_SCAD  = x_opt_SCAD(2:end);
     gamma_hat_SCAD  = b(:) .* theta_hat_SCAD(:);
-    gamma0_hat_SCAD = theta0_hat_SCAD + sum(b0(:).*theta_hat_SCAD(:));
-    beta_hat_whole_uniscad = [gamma0_hat_SCAD; gamma_hat_SCAD];
+    gamma0_hat_SCAD = theta0_hat_SCAD + sum(b0(:) .* theta_hat_SCAD(:));
 
-    results.UNISCAD.lambda = best_lambda_uniscad;
-    results.UNISCAD.beta   = beta_hat_whole_uniscad;
-    results.UNISCAD.a      = a;
+    results.UNISCAD.lambda       = best_lambda_uniscad;
+    results.UNISCAD.beta         = [gamma0_hat_SCAD; gamma_hat_SCAD];
+    results.UNISCAD.a            = a;
     results.UNISCAD.rmps_options = rmps_options;
 end
 
-% --- Display results in requested format ---
+% --- Display results ---
 if isfield(results,'UNILASSO')
     disp('======================================================');
     disp(' UNILASSO ESTIMATED COEFFICIENTS  [beta0_hat ; beta_hat]');
@@ -620,7 +463,7 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
     % Data split
     data_local = split_data(X, y, nfolds);
 
-    [nloc, ploc] = size(X);
+    [~, ploc] = size(X);
 
     % Default RMPS bounds if empty
     ub_lb_factor = 1e2;
@@ -638,30 +481,27 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
         rmps_options.cutoff = 1e-6;
     end
 
-    % determine which methods to run
+    % Determine which methods to run
     if ischar(method)
         method = lower(method);
         run_unil = strcmp(method,'all') || strcmp(method,'unilasso');
-        run_mcp = strcmp(method,'all') || strcmp(method,'unimcp');
+        run_mcp  = strcmp(method,'all') || strcmp(method,'unimcp');
         run_scad = strcmp(method,'all') || strcmp(method,'uniscad');
     else
         run_unil = any(strcmpi(method,'unilasso'));
-        run_mcp = any(strcmpi(method,'unimcp'));
+        run_mcp  = any(strcmpi(method,'unimcp'));
         run_scad = any(strcmpi(method,'uniscad'));
     end
 
-    % Helper to perform CV for single objective
     function best_lambda = cv_run_local(obj_builder)
-        % Optimized local CV (same approach as cv_for_objective)
         best_mse = inf; best_lambda = NaN;
 
-        % Precompute per-fold univariate regressions using index-based splits
         train_idx_cell = cell(nfolds,1);
         test_idx_cell  = cell(nfolds,1);
-        B_mat = zeros(ploc, nfolds);
+        B_mat  = zeros(ploc, nfolds);
         B0_mat = zeros(ploc, nfolds);
-        ETA = cell(nfolds,1);
-        PSI0 = cell(nfolds,1);
+        ETA    = cell(nfolds,1);
+        PSI0   = cell(nfolds,1);
 
         for f = 1:nfolds
             train_idx = data_local.train_idx{f};
@@ -673,9 +513,9 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
             ytr = y(train_idx);
             [b0_fold, b_fold, ~, ~, eta_loo_fold] = unisparse_univreg(Xtr, ytr);
 
-            B_mat(:,f) = b_fold(:);
+            B_mat(:,f)  = b_fold(:);
             B0_mat(:,f) = b0_fold(:);
-            ETA{f} = eta_loo_fold;
+            ETA{f}      = eta_loo_fold;
 
             if isempty(rmps_x0)
                 PSI0{f} = [mean(b0_fold); ones(ploc,1)];
@@ -692,48 +532,40 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
 
             if use_parallel
                 parfor f = 1:nfolds
-                    train_idx = train_idx_cell{f};
-                    test_idx  = test_idx_cell{f};
-
-                    Xte = X(test_idx, :);
-                    yte = y(test_idx);
-
-                    b0 = B0_mat(:,f);
-                    b  = B_mat(:,f);
+                    Xte     = X(test_idx_cell{f}, :);
+                    yte     = y(test_idx_cell{f});
+                    b0      = B0_mat(:,f);
+                    b       = B_mat(:,f);
                     eta_loo = ETA{f};
-                    psi0 = PSI0{f};
+                    psi0    = PSI0{f};
 
-                    objFun = obj_builder(psi0, eta_loo, y(train_idx), lambda);
+                    objFun = obj_builder(psi0, eta_loo, y(train_idx_cell{f}), lambda);
                     [x_opt, ~, ~] = RMPSH(objFun, psi0, rmps_lb, rmps_ub, rmps_options);
 
                     theta0_hat = x_opt(1);
                     theta_hat  = x_opt(2:end);
                     gamma_hat  = b(:) .* theta_hat(:);
-                    gamma0_hat = theta0_hat + sum(b0(:).*theta_hat(:));
+                    gamma0_hat = theta0_hat + sum(b0(:) .* theta_hat(:));
 
                     yhat_te = gamma0_hat + Xte * gamma_hat;
                     fold_test_mse(f) = mean((yte - yhat_te).^2);
                 end
             else
                 for f = 1:nfolds
-                    train_idx = train_idx_cell{f};
-                    test_idx  = test_idx_cell{f};
-
-                    Xte = X(test_idx, :);
-                    yte = y(test_idx);
-
-                    b0 = B0_mat(:,f);
-                    b  = B_mat(:,f);
+                    Xte     = X(test_idx_cell{f}, :);
+                    yte     = y(test_idx_cell{f});
+                    b0      = B0_mat(:,f);
+                    b       = B_mat(:,f);
                     eta_loo = ETA{f};
-                    psi0 = PSI0{f};
+                    psi0    = PSI0{f};
 
-                    objFun = obj_builder(psi0, eta_loo, y(train_idx), lambda);
+                    objFun = obj_builder(psi0, eta_loo, y(train_idx_cell{f}), lambda);
                     [x_opt, ~, ~] = RMPSH(objFun, psi0, rmps_lb, rmps_ub, rmps_options);
 
                     theta0_hat = x_opt(1);
                     theta_hat  = x_opt(2:end);
                     gamma_hat  = b(:) .* theta_hat(:);
-                    gamma0_hat = theta0_hat + sum(b0(:).*theta_hat(:));
+                    gamma0_hat = theta0_hat + sum(b0(:) .* theta_hat(:));
 
                     yhat_te = gamma0_hat + Xte * gamma_hat;
                     fold_test_mse(f) = mean((yte - yhat_te).^2);
@@ -742,7 +574,8 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
 
             test_mse = mean(fold_test_mse);
             if test_mse < best_mse
-                best_mse = test_mse; best_lambda = lambda;
+                best_mse    = test_mse;
+                best_lambda = lambda;
             end
         end
     end
@@ -762,9 +595,9 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
         theta0_hat_L1 = x_opt_L1(1);
         theta_hat_L1  = x_opt_L1(2:end);
         gamma_hat_L1  = b(:) .* theta_hat_L1(:);
-        gamma0_hat_L1 = theta0_hat_L1 + sum(b0(:).*theta_hat_L1(:));
+        gamma0_hat_L1 = theta0_hat_L1 + sum(b0(:) .* theta_hat_L1(:));
         results_local.UNILASSO.lambda = best_lambda_unil;
-        results_local.UNILASSO.beta = [gamma0_hat_L1; gamma_hat_L1];
+        results_local.UNILASSO.beta   = [gamma0_hat_L1; gamma_hat_L1];
     end
 
     if run_mcp
@@ -781,10 +614,10 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
         theta0_hat_MCP = x_opt_MCP(1);
         theta_hat_MCP  = x_opt_MCP(2:end);
         gamma_hat_MCP  = b(:) .* theta_hat_MCP(:);
-        gamma0_hat_MCP = theta0_hat_MCP + sum(b0(:).*theta_hat_MCP(:));
+        gamma0_hat_MCP = theta0_hat_MCP + sum(b0(:) .* theta_hat_MCP(:));
         results_local.UNIMCP.lambda = best_lambda_mcp;
-        results_local.UNIMCP.beta = [gamma0_hat_MCP; gamma_hat_MCP];
-        results_local.UNIMCP.gamma = gamma;
+        results_local.UNIMCP.beta   = [gamma0_hat_MCP; gamma_hat_MCP];
+        results_local.UNIMCP.gamma  = gamma;
     end
 
     if run_scad
@@ -801,10 +634,10 @@ function out = unisparse_cv_single(X, y, lambda_range, nfolds, method, rmps_lb, 
         theta0_hat_SCAD = x_opt_SCAD(1);
         theta_hat_SCAD  = x_opt_SCAD(2:end);
         gamma_hat_SCAD  = b(:) .* theta_hat_SCAD(:);
-        gamma0_hat_SCAD = theta0_hat_SCAD + sum(b0(:).*theta_hat_SCAD(:));
+        gamma0_hat_SCAD = theta0_hat_SCAD + sum(b0(:) .* theta_hat_SCAD(:));
         results_local.UNISCAD.lambda = best_lambda_scad;
-        results_local.UNISCAD.beta = [gamma0_hat_SCAD; gamma_hat_SCAD];
-        results_local.UNISCAD.a = a;
+        results_local.UNISCAD.beta   = [gamma0_hat_SCAD; gamma_hat_SCAD];
+        results_local.UNISCAD.a      = a;
     end
 
     out = results_local;
