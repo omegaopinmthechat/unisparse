@@ -24,4 +24,13 @@ test_1:
 
 Done.
 
-test_2: 
+TODO:
+make lambda range -> lambda grid , user will give the full grid 
+do no keep lambda grid default, grid size 10
+ambda_grid = logspace(log10(lambda_range(1)), log10(lambda_range(2)), 10);
+lambda 10^-5 to 10^4
+make rmps_x0 -> x0
+lb ub default: 10^4 -> -10^4
+rmps -> p+1
+(X, y, lambda_range, nfolds, method, rmps_x0, rmps_lb, rmps_ub, rmps_options, a, gamma)
+make sure not to use different folders
