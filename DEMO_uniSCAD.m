@@ -90,6 +90,7 @@ fprintf('Beta RMSE       : %.6f\n', metrics(4));
 fprintf('Beta MAD        : %.6f\n', metrics(5));
 fprintf('TPR             : %.4f\n', metrics(1));
 fprintf('FPR             : %.4f\n', metrics(2));
+fprintf('FDR             : %.4f\n', metrics(7));
 fprintf('MCC             : %.4f\n', metrics(3));
 fprintf('Non-zero coefs  : %d\n',   sum(abs(gamma_hat_SCAD) > tol));
 

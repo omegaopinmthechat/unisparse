@@ -3,7 +3,7 @@ function metrics = compute_sparse_metrics(beta_hat_whole, beta_true_whole, ...
 % compute_sparse_metrics
 % ---------------------------------------------------------
 % Returns a SINGLE row vector of metrics:
-% [TPR, FPR, MCC, Beta_RMSE, Beta_MAD, Full_MSE]
+% [TPR, FPR, MCC, Beta_RMSE, Beta_MAD, Full_MSE, FDR]
 %
 % Coefficients include intercept:
 %   beta_whole = [beta0 ; beta(1:p)]
@@ -49,6 +49,13 @@ else
     FPR = 0;
 end
 
+% ---------- FDR ----------
+if (TP + FP) > 0
+    FDR = FP / (TP + FP);
+else
+    FDR = 0;
+end
+
 % ---------- MCC ----------
 den = sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN));
 if den > 0
@@ -65,6 +72,6 @@ Beta_MAD  = mean(abs(beta_hat - beta_true));
 Full_MSE = mean((yfull - yhat_full).^2);
 
 % ---------- SINGLE OUTPUT VECTOR ----------
-metrics = [TPR, FPR, MCC, Beta_RMSE, Beta_MAD, Full_MSE];
+metrics = [TPR, FPR, MCC, Beta_RMSE, Beta_MAD, Full_MSE, FDR];
 
 end

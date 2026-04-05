@@ -6,7 +6,7 @@
 %   - UniMCP   (MCP penalty)
 %   - UniSCAD  (SCAD penalty)
 %
-% Metrics: TPR, FPR, MCC, MSE, Beta RMSE, Beta MAD, Time
+% % Metrics: TPR, FPR, MCC, Beta RMSE, Beta MAD, MSE, FDR
 % ============================================================
 
 clc; clear;
@@ -78,8 +78,8 @@ yhat_L1 = gamma0_hat_L1 + X * gamma_hat_L1;
 metrics_L1 = compute_sparse_metrics(beta_hat_whole_L1, beta_true_whole, ...
                                      yhat_L1, y, tol);
 
-fprintf('  Completed in %.4f sec | TPR=%.3f, FPR=%.3f, MSE=%.6f\n', ...
-        time_L1, metrics_L1(1), metrics_L1(2), metrics_L1(6));
+fprintf('  Completed in %.4f sec | TPR=%.3f, FPR=%.3f, FDR=%.3f, MSE=%.6f\n', ...
+        time_L1, metrics_L1(1), metrics_L1(2), metrics_L1(7), metrics_L1(6));
 
 % ============================================================
 % Method 2: UniMCP (MCP penalty)
@@ -109,8 +109,8 @@ yhat_MCP = gamma0_hat_MCP + X * gamma_hat_MCP;
 metrics_MCP = compute_sparse_metrics(beta_hat_whole_MCP, beta_true_whole, ...
                                       yhat_MCP, y, tol);
 
-fprintf('  Completed in %.4f sec | TPR=%.3f, FPR=%.3f, MSE=%.6f\n', ...
-        time_MCP, metrics_MCP(1), metrics_MCP(2), metrics_MCP(6));
+fprintf('  Completed in %.4f sec | TPR=%.3f, FPR=%.3f, FDR=%.3f, MSE=%.6f\n', ...
+        time_MCP, metrics_MCP(1), metrics_MCP(2), metrics_MCP(7), metrics_MCP(6));
 
 % ============================================================
 % Method 3: UniSCAD (SCAD penalty)
@@ -140,8 +140,8 @@ yhat_SCAD = gamma0_hat_SCAD + X * gamma_hat_SCAD;
 metrics_SCAD = compute_sparse_metrics(beta_hat_whole_SCAD, beta_true_whole, ...
                                       yhat_SCAD, y, tol);
 
-fprintf('  Completed in %.4f sec | TPR=%.3f, FPR=%.3f, MSE=%.6f\n', ...
-        time_SCAD, metrics_SCAD(1), metrics_SCAD(2), metrics_SCAD(6));
+fprintf('  Completed in %.4f sec | TPR=%.3f, FPR=%.3f, FDR=%.3f, MSE=%.6f\n', ...
+        time_SCAD, metrics_SCAD(1), metrics_SCAD(2), metrics_SCAD(7), metrics_SCAD(6));
 
 % ============================================================
 % UNIFIED COMPARISON TABLE
@@ -153,6 +153,7 @@ Penalty_Param = [NaN; gamma_mcp; a_scad];
 
 TPR = [metrics_L1(1); metrics_MCP(1); metrics_SCAD(1)];
 FPR = [metrics_L1(2); metrics_MCP(2); metrics_SCAD(2)];
+FDR = [metrics_L1(7); metrics_MCP(7); metrics_SCAD(7)];
 MCC = [metrics_L1(3); metrics_MCP(3); metrics_SCAD(3)];
 
 Beta_RMSE = [metrics_L1(4); metrics_MCP(4); metrics_SCAD(4)];
@@ -163,7 +164,7 @@ Time_sec = [time_L1; time_MCP; time_SCAD];
 
 Obj_Value = [fval_L1; fval_MCP; fval_SCAD];
 
-Results_Table = table(Method, Lambda, Penalty_Param, TPR, FPR, MCC, ...
+Results_Table = table(Method, Lambda, Penalty_Param, TPR, FPR, FDR, MCC, ...
                       Beta_RMSE, Beta_MAD, MSE, Time_sec, Obj_Value);
 
 fprintf('\n');
@@ -177,8 +178,8 @@ fprintf('\n');
 disp('============================================================');
 disp('               KEY METRICS SUMMARY');
 disp('============================================================');
-Key_Metrics = table(Method, TPR, FPR, MSE, Time_sec, ...
-                    'VariableNames', {'Method', 'TPR', 'FPR', 'MSE', 'Time_sec'});
+Key_Metrics = table(Method, TPR, FPR, FDR, MSE, Time_sec, ...
+                    'VariableNames', {'Method', 'TPR', 'FPR', 'FDR', 'MSE', 'Time_sec'});
 disp(Key_Metrics);
 
 % -------- Coefficient Comparison --------

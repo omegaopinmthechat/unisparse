@@ -358,6 +358,15 @@ FPR = [
     Results_baseline.MCP.metrics(2)
 ];
 
+FDR = [
+    metrics_row_unilasso(7)
+    metrics_row_unimcp(7)
+    Results_baseline.LASSO.metrics(7)
+    Results_baseline.AdapLASSO.metrics(7)
+    Results_baseline.SCAD.metrics(7)
+    Results_baseline.MCP.metrics(7)
+];
+
 MCC = [
     metrics_row_unilasso(3)
     metrics_row_unimcp(3)
@@ -394,7 +403,7 @@ Full_MSE = [
     Results_baseline.MCP.metrics(6)
 ];
 
-Results_All = table(Method, Lambda, Gamma, TPR, FPR, MCC, ...
+Results_All = table(Method, Lambda, Gamma, TPR, FPR, FDR, MCC, ...
                     Beta_RMSE, Beta_MAD, Full_MSE);
 
 disp('================ FINAL METHOD COMPARISON ================');

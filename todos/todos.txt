@@ -34,3 +34,13 @@ lb ub default: 10^4 -> -10^4
 rmps -> p+1
 (X, y, lambda_range, nfolds, method, rmps_x0, rmps_lb, rmps_ub, rmps_options, a, gamma)
 make sure not to use different folders
+
+-Done
+
+TODO 3:
+- use this measure: FDR = FP/(TP+FP)
+
+TODO 4:
+- parallelize RMPSH
+- also give the option to choose for the user to choose which one to parallel 
+- FINAL CODE TO HAVE SCENARIO ONLY
