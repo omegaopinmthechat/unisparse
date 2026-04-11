@@ -5,11 +5,12 @@
 % The script calls unisparse with method='all' to fit UniLASSO, UniMCP, and UniSCAD.
 
 % Quick summary:
-% 300 samples (n = 300)
+% 300 samples (n = 300) 
 % 1000 features (p = 1000) → very high-dimensional
 % Only 20 features actually matter (sparse signal)
 % Features are correlated (0.5)
 
+% taking p = 20 for now
 
 clc;
 clear;
@@ -17,18 +18,15 @@ clear;
 % Reproducibility for data generation and CV splits.
 rng(2026);
 
-% Path setup
-% Add project folders relative to this script so it can be run from anywhere.
-this_file = mfilename('fullpath');
-repo_root = fileparts(fileparts(this_file));
-addpath(fullfile(repo_root, 'Unisparse'));
-addpath(fullfile(repo_root, 'supp funs'));
-addpath(fullfile(repo_root, 'RMPSH'));
-addpath(fullfile(repo_root, 'other methods'));
+% Safety checks if the unisparse functions are available or not
+if exist('unisparse', 'file') ~= 2
+	error(['unisparse not found on MATLAB path. ', ...
+		   'Install/enable Unisparse.mltbx, then re-run this script.']);
+end
 
 % Scenario settings
 n      = 300;   
-p      = 1000; % My laptop testing is done on 200
+p      = 20;  % My laptop testing is done on 20, later 1000 can be taken
 true_p = 20;   % Number of true nonzero coefficients (sparsity level)
 rho    = 0.5;  % Pairwise feature correlation
 
@@ -37,7 +35,6 @@ snr_labels  = {'low', 'medium', 'high'};
 snr_targets = [0.5, 1.0, 2.5];
 
 % UniSparse settings. Keep a modest grid here to make runs practical.
-% lambda_grid = logspace(-4, 1, 20); 
 lambda_grid = logspace(-4, 4, 10); % Using this as my PC can not handle the last lesser coarse lambda_grid
 nfolds      = 3; % use 5 (again my pc :( )
 a_scad      = 3.7;
@@ -154,12 +151,23 @@ function metrics_table = summarize_unisparse_methods(fit, beta0_true, beta_true,
 		yhat = beta_hat(1) + X * beta_hat(2:end);
 		m = compute_sparse_metrics(beta_hat, beta_true_whole, yhat, y, tol);
 
+		% Toolbox metrics vector: [TPR, FPR, MCC, Beta_RMSE, Beta_MAD, Full_MSE].
+		true_support = abs(beta_true_whole(2:end)) > tol;
+		est_support = abs(beta_hat(2:end)) > tol;
+		tp = sum(est_support & true_support);
+		fp = sum(est_support & ~true_support);
+		if (tp + fp) > 0
+			fdr_val = fp / (tp + fp);
+		else
+			fdr_val = 0;
+		end
+
 		lambda_vals(k) = fit.(key).lambda;
 		tpr_vals(k)    = m(1);
 		fpr_vals(k)    = m(2);
 		mcc_vals(k)    = m(3);
 		mse_vals(k)    = m(6);
-		fdr_vals(k)    = m(7);
+		fdr_vals(k)    = fdr_val;
 		nnz_vals(k)    = sum(abs(beta_hat(2:end)) > tol);
 	end
 
