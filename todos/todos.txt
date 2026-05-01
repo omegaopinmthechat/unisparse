@@ -44,3 +44,16 @@ TODO 4:
 - parallelize RMPSH
 - also give the option to choose for the user to choose which one to parallel 
 - FINAL CODE TO HAVE SCENARIO ONLY
+
+TODO 5: paper from archive p das
+generate function:
+input: n, p, truep, designtype(independent, correlated), row (ignore row in independent)
+data generate save if possible
+simulation study:
+suppfuns -> data generate, matrics - done for scenario 1 & 2
+main (surface function) - done for scenario 1 & 2
+output file:
+output/Output_scenario_<>_methodname_<>_n_<>_p<>_design_<>_SNR_<>_rho_<>_rep<>.csv (auto save) - done for scenario 1 & 2
+
+TODO 6:
+MSE -> RMSE
